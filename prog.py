@@ -14,8 +14,10 @@ parser = argparse.ArgumentParser("<name>")
 subparser = parser.add_subparsers(dest='attack')
 
 parser_arp = subparser.add_parser('arp-poison', aliases=['arp'])
-parser_arp.add_argument('target_ip')
-parser_arp.add_argument('-g', '--gratuitous', action='store_true')
+parser_arp.add_argument('iface', help='')
+parser_arp.add_argument('target_ip', help='')
+parser_arp.add_argument('spoof_ip', help='')
+parser_arp.add_argument('-g', '--gratuitous', action='store_true', help='')
 parser_arp.set_defaults(func=arp_poison)
 
 parser_dns = subparser.add_parser('dns-spoof', aliases=['dns'])

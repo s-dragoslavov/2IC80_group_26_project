@@ -1,0 +1,15 @@
+# Format: <Spoof_IP> <Target_Domain>
+# TODO: Replace 192.168.1.100 with the IP address of your attacker machine.
+
+# 1. Phishing Demo: Redirect users to your fake server
+131.155.221.157 example.com
+131.155.221.157 www.google.com
+131.155.221.157 google.com
+131.155.221.157 www.facebook.com
+
+# 2. Sinkhole/Ad-block Demo: Redirect to localhost (dead end)
+127.0.0.1 doubleclick.net
+127.0.0.1 ads.google.com
+
+# 3. Localhost override
+127.0.0.1 localhost

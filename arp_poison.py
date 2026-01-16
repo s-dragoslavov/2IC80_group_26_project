@@ -33,6 +33,7 @@ def callback_arp_poison_check(pkt, iface, target_ip, fake_ip):
 
 def arp_poison_callback(iface, target_ip, fake_ip):
     print("Callback ARP cache poisoning:")
+    print(f"iface: {iface}, target_ip: { target_ip if target_ip != 0 else "All"}, fake_ip: {target_ip if target_ip != 0 else "All"}")
     sniff(prn=lambda pkt: callback_arp_poison_check(pkt, iface, target_ip, fake_ip), 
 	filter="arp", iface=iface, store=False)
 
@@ -46,7 +47,9 @@ def sig_int_handler(signum , frame):
         f = open(arp_watcher_db_file , "w")
 
         for (ip , mac) in ip_mac.items ():
-            f.write(ip + " " + mac + "\n")
+            if ip and mac:
+                print (f"Saving {ip} {mac}")
+                f.write(ip + " " + mac + "\n")
 
         f.close ()
         print (" Done.")
@@ -87,6 +90,6 @@ def apr_wacher(iface):
 
     for line in fh:
         (ip , mac) = line.split(" ")
-        ip_mac[ip] = mac
+        ip_mac[ip] = mac[:-1]
 
     sniff(prn=arp_watch_func, filter="arp", iface=iface, store=0)

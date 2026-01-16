@@ -8,7 +8,7 @@ def arp_poison():
     if args.attack_type == 'gratuitous':
         arp.grat_arp_poison(args.iface, args.target_ip, args.spoof_ip)
     elif args.attack_type == 'callback':
-        arp.arp_poison_callback(args.iface, args.target_ip if hasattr(args, 'target_ip') else 0, args.spoof_ip if hasattr(args, 'spoof_ip') else 0)
+        arp.arp_poison_callback(args.iface, args.target_ip if args.target_ip else 0, args.spoof_ip if args.spoof_ip else 0)
     elif args.attack_type == 'watcher':
         arp.apr_wacher(args.iface)
     return

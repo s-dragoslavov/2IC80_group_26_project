@@ -142,4 +142,4 @@ def rewrite_http_payload(raw_payload: bytes) -> bytes:
     payload = re.sub(b'https://', b'http://  ', raw_payload, flags=re.IGNORECASE)
     payload = re.sub(b'Strict-Transport-Security', b'X-Ignore-HSTS            ', payload, flags=re.IGNORECASE)
     payload = re.sub(b'; Secure', b';       ', payload, flags=re.IGNORECASE)
-    return payload
+    return payload 

@@ -120,9 +120,8 @@ def process_packet(pkt, config, victim_mac, gateway_mac, my_mac):
     pkt[scapy.Ether].dst = target_mac
     pkt[scapy.Ether].src = my_mac
     
-    # Use 'sendp' and specify the interface again
     try:
-        # We use verbose=False to keep the console clean
+        # we use verbose=false to keep the console clean
         scapy.sendp(pkt, iface=config.iface, verbose=False, count=1, realtime=True)
     except Exception as e:
         print(f"[-] Forwarding error: {e}")

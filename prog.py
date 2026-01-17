@@ -5,19 +5,23 @@ import dns_poison as dns
 #from scapy.all import sendp, ARP, Ether
 
 def arp_poison():
-    if args.attack_type == 'gratuitous':
+    if args.arp_attack == 'gratuitous':
         arp.grat_arp_poison(args.iface, args.target_ip, args.spoof_ip)
-    elif args.attack_type == 'callback':
+    elif args.arp_attack == 'callback':
         arp.arp_poison_callback(args.iface, args.target_ip if args.target_ip else 0, args.spoof_ip if args.spoof_ip else 0)
-    elif args.attack_type == 'watcher':
+    elif args.arp_attack == 'watcher':
         arp.apr_wacher(args.iface)
     return
 
 def dns_spoof():
     if args.target_ip and args.gateway_ip:
         print(f"[*] Starting background ARP poisoning: {args.target_ip} <-> {args.gateway_ip}")
-        t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
-        t.start()
+        if args.callback:
+            t = threading.Thread(target=arp.arp_poison_callback, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
+            t.start()
+        else:
+            t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
+            t.start()
     dns.run_dns_spoof(args.iface, args.target_ip, args.hosts_file)
     return
 
@@ -35,30 +39,31 @@ def ssl_strip():
     return
 
 parser = argparse.ArgumentParser()
-subparsers = parser.add_subparsers(dest='attack')
+subparsers = parser.add_subparsers(dest='attack_type')
 
-parser_arp = subparsers.add_parser('arp-poison', aliases=['arp'])
+parser_arp = subparsers.add_parser('arp-poison', aliases=['arp'], help='ARP cache poisoning attacks')
 ifaces = [iface for iface in psutil.net_if_addrs().keys()]
-parser_arp.add_argument('-i', '--iface', choices=ifaces, required=True, help='')
-subparsers_arp = parser_arp.add_subparsers(dest='attack_type')
-parser_arp_grat = subparsers_arp.add_parser('gratuitous')
-parser_arp_grat.add_argument('-t', '--target_ip', required=True)
-parser_arp_grat.add_argument('-s', '--spoof_ip', required=True)
-parser_arp_grat = subparsers_arp.add_parser('callback')
-parser_arp_grat.add_argument('-t', '--target_ip')
-parser_arp_grat.add_argument('-s', '--spoof_ip')
-parser_arp_grat = subparsers_arp.add_parser('watcher')
+parser_arp.add_argument('-i', '--iface', choices=ifaces, required=True, help='Network interface to listen on and send to')
+subparsers_arp = parser_arp.add_subparsers(dest='arp_attack')
+parser_arp_grat = subparsers_arp.add_parser('gratuitous', help='Send gratuitous spoofed ARP answers repeatedly')
+parser_arp_grat.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
+parser_arp_grat.add_argument('-s', '--spoof_ip', required=True, help='IP address we will pretend to be')
+parser_arp_grat = subparsers_arp.add_parser('callback', help='Send spoofed ARP answers only after receiving a request.')
+parser_arp_grat.add_argument('-t', '--target_ip', help='Victim IP address, if not filled will target all hosts on local network')
+parser_arp_grat.add_argument('-s', '--spoof_ip', help='IP address we will pretend to be, if not filled will spoof all hosts on local network')
+parser_arp_grat = subparsers_arp.add_parser('watcher', help='Monitor the local network and record IP-MAC pairs in a arp-watcher.db file.')
 parser_arp.set_defaults(func=arp_poison)
 
-parser_dns = subparsers.add_parser('dns-spoof', aliases=['dns'])
-parser_dns.add_argument('-i', '--iface', required=True, help='Interface to listen on')
-parser_dns.add_argument('-t', '--target_ip', help='Only spoof this client IP')
+parser_dns = subparsers.add_parser('dns-spoof', aliases=['dns'], help='DNS spoofing attack')
+parser_dns.add_argument('-i', '--iface', required=True, help='Network interface to listen on and send to')
+parser_dns.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
 parser_dns.add_argument('-f', '--hosts_file', default='dns-file.txt', help='Host mapping file')
 parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning')
+parser_dns.add_argument('-c', '--callback', action='store_true', help='Only send ARP responces, reduces noise but takes more time')
 parser_dns.set_defaults(func=dns_spoof)
 
-parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'])
-parser_ssl.add_argument('-i', '--iface', required=True, help='Network interface')
+parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'], help='SSL strip attack')
+parser_ssl.add_argument('-i', '--iface', required=True, help='Network interface to listen on and send to')
 parser_ssl.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
 parser_ssl.add_argument('-g', '--gateway_ip', required=True, help='Gateway IP address')
 parser_ssl.add_argument('-p', '--listen_port', type=int, default=8080, help='Port to listen on (if using proxy mode)')

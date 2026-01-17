@@ -75,7 +75,7 @@ def sig_int_handler(signum , frame):
     sys.exit (1)
 
 
-def arp_watch_func(pkt):
+def watcher_process_pkt(pkt):
     # got is -at pkt (ARP response)
     if pkt[ARP].op == 2:
         print(pkt[ARP].hwsrc + " " + pkt[ARP].psrc)
@@ -90,7 +90,7 @@ def arp_watch_func(pkt):
         print(pkt[ARP].hwsrc + " has got new ip " + pkt[ARP].psrc + " (old " + ip_mac[pkt[ARP].psrc]+ ")")
         ip_mac[pkt[ARP].psrc] = pkt[ARP].hwsrc
 
-def apr_wacher(iface):
+def apr_watcher(iface):
     
     signal(SIGINT, sig_int_handler)
 
@@ -108,4 +108,4 @@ def apr_wacher(iface):
         (ip , mac) = line.split(" ")
         ip_mac[ip] = mac[:-1]
 
-    sniff(prn=arp_watch_func, filter="arp", iface=iface, store=0)
+    sniff(prn=watcher_process_pkt, filter="arp", iface=iface, store=0)

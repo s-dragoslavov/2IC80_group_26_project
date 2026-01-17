@@ -1,7 +1,6 @@
 # Man-in-the-Middle Attack Framework  
 ## ARP Poisoning, DNS Spoofing, and SSL Stripping with Scapy
 
----
 
 ## Overview
 
@@ -9,7 +8,6 @@ This project implements a modular Man-in-the-Middle (MitM) framework built using
 
 The framework is exposed through a unified command-line interface and is intended for educational use in authorised environments only.
 
----
 
 ## Architecture
 
@@ -22,7 +20,6 @@ The system is organised into independent Python modules coordinated by a central
 - `dns-file.txt` – domain-to-IP mappings for DNS spoofing  
 - `arp-watcher.db` (generated) – IP–MAC database produced by ARP watcher and reused for MAC resolution
 
----
 
 ## Implemented Functionality
 
@@ -40,7 +37,6 @@ The system is organised into independent Python modules coordinated by a central
   - forwards packets at Ethernet level after modification and checksum recalculation
   - uses firewall rules to prevent kernel-level forwarding of intercepted HTTP traffic
 
----
 
 ## Instructions
 
@@ -48,7 +44,6 @@ This section describes how to install dependencies, configure the environment, a
 
 (To be completed.)
 
----
 
 ## Limitations
 
@@ -56,7 +51,6 @@ This section describes how to install dependencies, configure the environment, a
 - DNS spoofing is limited to A-record queries.
 - The framework assumes a local network without active MitM protections (e.g., dynamic ARP inspection).
 
----
 
 ## Ethical Notice
 

@@ -20,7 +20,7 @@ def dns_spoof():
             t = threading.Thread(target=arp.arp_poison_callback, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
             t.start()
         else:
-            t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip), daemon=True)
+            t = threading.Thread(target=arp.grat_arp_poison, args=(args.iface, args.target_ip, args.gateway_ip, 0), daemon=True)
             t.start()
     dns.run_dns_spoof(args.iface, args.target_ip, args.hosts_file)
     return
@@ -63,7 +63,7 @@ parser_dns = subparsers.add_parser('dns-spoof', aliases=['dns'], help='DNS spoof
 parser_dns.add_argument('-i', '--iface', required=True, help='Network interface to listen on and send to')
 parser_dns.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
 parser_dns.add_argument('-f', '--hosts_file', default='dns-file.txt', help='Host mapping file')
-parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning')
+parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning, if not specified no ARP poisoning will be performed')
 parser_dns.add_argument('-c', '--callback', action='store_true', help='Only send ARP responses, reduces noise but takes more time')
 parser_dns.set_defaults(func=dns_spoof)
 

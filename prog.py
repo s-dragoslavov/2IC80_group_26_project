@@ -64,7 +64,7 @@ parser_dns.add_argument('-i', '--iface', required=True, help='Network interface 
 parser_dns.add_argument('-t', '--target_ip', required=True, help='Victim IP address')
 parser_dns.add_argument('-f', '--hosts_file', default='dns-file.txt', help='Host mapping file')
 parser_dns.add_argument('-g', '--gateway_ip', help='Gateway IP for ARP poisoning')
-parser_dns.add_argument('-c', '--callback', action='store_true', help='Only send ARP responces, reduces noise but takes more time')
+parser_dns.add_argument('-c', '--callback', action='store_true', help='Only send ARP responses, reduces noise but takes more time')
 parser_dns.set_defaults(func=dns_spoof)
 
 parser_ssl = subparsers.add_parser('ssl-strip', aliases=['ssl'], help='SSL strip attack')

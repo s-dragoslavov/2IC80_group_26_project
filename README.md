@@ -3,7 +3,6 @@
 
 
 ## Overview
-
 This project implements a modular Man-in-the-Middle (MitM) framework built using Scapy. It integrates ARP poisoning, DNS spoofing, and SSL stripping into a single tool that supports controlled experiments on local networks.
 
 The framework is exposed through a unified command-line interface and is intended for educational use in authorised environments only.

